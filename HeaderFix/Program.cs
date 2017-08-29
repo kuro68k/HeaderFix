@@ -15,6 +15,7 @@ namespace HeaderFix
 		static bool verbose = false;
 		static bool dry_run = false;
 		static bool preserve_timestamps = false;
+		static bool cfiles = false;
 
 		static int Main(string[] args)
 		{
@@ -48,6 +49,10 @@ namespace HeaderFix
 				{ new CmdArgument("p,preserve", ArgType.Flag, required: false,
 					help: "Preserve modified file timestamps",
 					assign: (dynamic d) => { preserve_timestamps = true; }) },
+
+				{ new CmdArgument("c,cfiles", ArgType.Flag, required: false,
+					help: "Process C/C++/C# files (.c, .cpp, .h, .cs)",
+					assign: (dynamic d) => { cfiles = true; }) },
 
 				{ new CmdArgument("input file/dir", ArgType.String, required: true,
 					anonymous: true,
@@ -118,10 +123,33 @@ namespace HeaderFix
 			foreach (string input in input_list)
 			{
 				// get full path and file name/pattern
-				string pattern = Path.GetFileName(input);
-				string relative_path = input.Substring(0, input.Length - pattern.Length);
+				string input2 = input;
+				if (Directory.Exists(input2) && !input2.EndsWith("\\"))
+					input2 += '\\';
+				string pattern = Path.GetFileName(input2);
+				if (string.IsNullOrEmpty(pattern))
+				{
+					pattern = "*.*";
+					input2 += pattern;
+				}
+				string relative_path = input2.Substring(0, input2.Length - pattern.Length);
 				string absolute_path = Path.GetFullPath(Path.Combine(Directory.GetCurrentDirectory(), relative_path));
-				string[] file_list = Directory.GetFiles(absolute_path, pattern, so);
+
+				string[] file_list;
+				if (!cfiles)
+					file_list = Directory.GetFiles(absolute_path, pattern, so);
+				else
+				{
+					string[] clist = Directory.GetFiles(absolute_path, "*.c", so);
+					string[] cpplist = Directory.GetFiles(absolute_path, "*.cpp", so);
+					string[] hlist = Directory.GetFiles(absolute_path, "*.h", so);
+					string[] cslist = Directory.GetFiles(absolute_path, "*.cs", so);
+					file_list = new string[clist.Length + cpplist.Length + hlist.Length + cslist.Length];
+					clist.CopyTo(file_list, 0);
+					cpplist.CopyTo(file_list, clist.Length);
+					hlist.CopyTo(file_list, clist.Length + cpplist.Length);
+					cslist.CopyTo(file_list, clist.Length + cpplist.Length + hlist.Length);
+				}
 
 				if (file_list.Length == 0)
 				{
@@ -199,9 +227,12 @@ namespace HeaderFix
 				return false;
 			}
 
+			// find creation time
+			string created = GetCreationTime(filename);
+
 			// process header for this file
 			byte[] processed_header = new byte[header.Length];
-			processed_header = ProcessSubstitutions(header, filename, arbs);
+			processed_header = ProcessSubstitutions(header, filename, created, arbs);
 
 			int new_length = processed_header.Length + src.Length - src_header_end;
 			byte[] new_file = new byte[new_length];
@@ -236,6 +267,25 @@ namespace HeaderFix
 			}
 
 			return true;
+		}
+
+		static string GetCreationTime(string filename)
+		{
+			using (TextReader tr = File.OpenText(filename))
+			{
+				for (int i = 0; i < 10; i++)	// max lines to check
+				{
+					string line = tr.ReadLine();
+					if (line.Contains(@"Created:"))
+					{
+						int pos = line.IndexOf(':');
+						return line.Substring(pos+1).Trim();
+					}
+				}
+			}
+
+			// creation time not found in header, use file creation time
+			return File.GetCreationTime(filename).ToString("dd/MM/yyyy HH:mm:ss");
 		}
 
 		static string PadFilename(string filename, int length)
@@ -369,12 +419,13 @@ namespace HeaderFix
 		}
 
 		// replace $identifier values in byte stream
-		private static byte[] ProcessSubstitutions(byte[] buffer, string filename, string[] arb)
+		private static byte[] ProcessSubstitutions(byte[] buffer, string filename, string created, string[] arb)
 		{
 			int i;
 			MemoryStream ms = new MemoryStream();
 			filename = Path.GetFileName(filename);
 			byte[] filename_array = Encoding.UTF8.GetBytes(filename);
+			byte[] created_array = Encoding.UTF8.GetBytes(created);
 			byte[][] arb_array = new byte[10][];
 			if (arb != null)
 			{
@@ -403,6 +454,10 @@ namespace HeaderFix
 						{
 							case "filename":
 								ms.Write(filename_array, 0, filename_array.Length);
+								break;
+
+							case "created":
+								ms.Write(created_array, 0, created_array.Length);
 								break;
 
 							case "0":
