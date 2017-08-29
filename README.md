@@ -35,7 +35,7 @@ HeaderFix [options] -h <header file> <input pattern>
 
 `input pattern` can be a single file, a directory, or a pattern like `project\*.c`. Multiple inputs can be supplied, separated by a semicolon. Examples:
 
-`HeaderFix -h header.h c:\code\project`
+`HeaderFix -h header.h c:\code\project`<br>
 *Process all files in c:\code\project*<br>
 `HeaderFix -h header.h c:\code\project\*.h`<br>
 *Process headers in c:\code\project*<br>
