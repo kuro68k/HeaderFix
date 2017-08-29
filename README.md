@@ -24,6 +24,7 @@ Then involke HeaderFix as follows:
 HeaderFix [options] -h <header file> <input pattern>
 
 -h <header.h>   Header file, mandatory
+-c				Process C/C++/C# files (.c, .cpp, .h, .cs)
 -r              Recurse into subdirectories
 -q              Quiet, only print errors
 -v              Verbose, print status of each file
@@ -32,7 +33,16 @@ HeaderFix [options] -h <header file> <input pattern>
 -a0 to a9       Arbitrary substiution strings
 ```
 
-`input pattern` can be a single file, a directory, or a pattern like `project\*.c`. Multiple inputs can be supplied, separated by a semicolon. Example:
+`input pattern` can be a single file, a directory, or a pattern like `project\*.c`. Multiple inputs can be supplied, separated by a semicolon. Examples:
+
+`HeaderFix -h header.h c:\code\project`
+*Process all files in c:\code\project*
+`HeaderFix -h header.h c:\code\project\*.h`
+*Process headers in c:\code\project*
+`HeaderFix -h header.h -r -c c:\code\project`
+*Process all .c, .cpp, .h and .cs files in c:\code\project and all subdirectories*
+
+Arbitrary strings example:
 
 `HeaderFix -h header.h -v -p -a0 "2017" -a1 "GPL v3" project\*.c;project\*.h`
 
